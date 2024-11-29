@@ -1,0 +1,52 @@
+# Node.js
+node_modules/
+*.log
+yarn.lock
+npm-debug.log*
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Next.js
+.next/
+out/
+
+# VS Code
+.vscode/
+
+# Docker
+docker-compose.override.yml
+*.dockerfile
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+build/
+dist/
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Coverage reports (если используете тесты с покрытием)
+coverage/
+
+# Debugging tools
+*.swp
+*.swo
+*.idea/
+
+# Git-specific
+.git/
