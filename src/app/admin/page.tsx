@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2 } from 'lucide-react'
-import PCList from '@/components/PCList'
+import PassportsList  from '@/components/PassportsList'
 
 
 export default function AdminPage() {
@@ -30,7 +30,7 @@ export default function AdminPage() {
   return (
     <div className="flex h-screen bg-gray-100">
         <main className="flex-1 overflow-auto">
-          <PCList />
+          <PassportsList />
         </main>
     </div>
   )

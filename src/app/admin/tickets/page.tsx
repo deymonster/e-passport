@@ -1,16 +1,15 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Loader2, Search } from 'lucide-react';
-
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { format } from 'date-fns';
-// import { useToast } from '@/components/ui/use-toast';
-import { TicketChat } from '@/components/chat/ticket-chat';
+import { ru } from 'date-fns/locale';
+import { Chat } from '@/components/passport/chat';
 import {
   Select,
   SelectContent,
@@ -18,11 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { DateRange } from "react-day-picker";
 import { useSocketClient } from '@/hooks/useSocketClient';
 import { useNotification } from '@/hooks/useNotification';
-
-import { useRef } from 'react';
 
 interface Message {
   id: number;
@@ -31,16 +29,32 @@ interface Message {
   isAdmin: boolean;
 }
 
+interface Passport {
+  id: number;
+  sn: string;
+  orderNumber: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Ticket {
   id: number;
   status: 'OPEN' | 'IN_PROGRESS' | 'CLOSED';
-  createdAt: string;
+  dateCreated: string;
   messages: Message[];
-  pendingClosure: boolean;
-  pc: {
-    sn: string;
-    descr: string | null;
-  };
+  passport: Passport;
+}
+
+function getAdminSessionId(): string {
+  if (typeof window === 'undefined') return '';
+  
+  let sessionId = localStorage.getItem('adminSessionId');
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    localStorage.setItem('adminSessionId', sessionId);
+  }
+  return sessionId;
 }
 
 export default function TicketsPage() {
@@ -49,31 +63,29 @@ export default function TicketsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [previousStatus, setPreviousStatus] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'closed'>('all');
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [isConnected, setIsConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  // const { toast } = useToast();
   const { showNotification } = useNotification();
 
-  const { onTicketStatusUpdated, onRequestClosure, 
-          onConfirmClosure, onDeclineClosure, 
-          updateTicketStatus, onClosureDeclined, 
-          onClosureConfirmed } = useSocketClient(
+  const adminSessionId = getAdminSessionId();
+
+  const { onTicketStatusUpdated, 
+          updateTicketStatus, 
+          isConnected: socketConnected } = useSocketClient(
     selectedTicket?.id || 0,
-    'admin'
+    'admin',
+    adminSessionId
   );
 
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      console.log('Scrolling to bottom', messagesEndRef.current);
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      console.warn('messagesEndRef not available');
-    }
-  };
+  useEffect(() => {
+    setIsConnected(socketConnected);
+  }, [socketConnected]);
 
   useEffect(() => {
     fetchTickets();
-  }, [searchQuery]);
+  }, [searchQuery, filter, dateRange]);
 
   useEffect(() => {
     if (selectedTicket) {
@@ -92,335 +104,246 @@ export default function TicketsPage() {
       );
 
       if (selectedTicket?.id === updatedTicket.id) {
-        if (updatedTicket.status !== selectedTicket.status) {
-          setSelectedTicket((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  status: updatedTicket.status as 'OPEN' | 'IN_PROGRESS' | 'CLOSED',
-                  pendingClosure: false,
-                }
-              : null
-          );
-          scrollToBottom();
-        }
-
-        showNotification({
-          type: 'success',
-          message: `Статус обращения изменен на ${updatedTicket.status}`,
-        })
-
-      }
-
-
-      
-    });
-
-    const cleanupClosureDeclined = onClosureDeclined((ticketId: number) => {
-      setTickets((prevTickets) =>
-        prevTickets.map((ticket) =>
-          ticket.id === ticketId ? { ...ticket, pendingClosure: false } : ticket
-        )
-      );
-  
-      if (selectedTicket?.id === ticketId) {
         setSelectedTicket((prev) =>
-          prev ? { ...prev, pendingClosure: false } : null
+          prev
+            ? {
+                ...prev,
+                status: updatedTicket.status as 'OPEN' | 'IN_PROGRESS' | 'CLOSED',
+                pendingClosure: false,
+              }
+            : null
         );
       }
-  
-      // toast({
-      //   title: 'Closure Declined',
-      //   description: 'The user has declined the closure request.',
-      // });
-      showNotification({
-        type: 'warning',
-        message: 'Пользователь отклонил запрос на закрытие',
-      });
     });
 
-    const cleanupClosureConfirmed = onClosureConfirmed((ticketId: number) => {
-      setTickets((prevTickets) =>
-        prevTickets.map((ticket) =>
-          ticket.id === ticketId
-            ? { ...ticket, pendingClosure: false, status: 'CLOSED' }
-            : ticket
-        )
-      );
-  
-      if (selectedTicket?.id === ticketId) {
-        setSelectedTicket((prev) =>
-          prev 
-            ? { 
-                ...prev, 
-                pendingClosure: false, 
-                status: 'CLOSED' } : null
-        );
-      }
-  
-      // toast({
-      //   title: 'Ticket Closed',
-      //   description: 'The user has confirmed the closure.',
-      // });
-      showNotification({
-        type: 'info',
-        message: 'Пользователь подтвердил закрытие',
-      });
-    });
-  
 
     return () => {
       cleanup();
-      cleanupClosureDeclined();
-      cleanupClosureConfirmed();
+      
     };
-  }, [onClosureDeclined, onTicketStatusUpdated, onClosureConfirmed, selectedTicket]);
+  }, [onTicketStatusUpdated, selectedTicket, showNotification]);
+
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   const fetchTickets = async () => {
     try {
-      const response = await fetch(`/api/tickets?search=${encodeURIComponent(searchQuery)}`);
+      setLoading(true);
+      const queryParams = new URLSearchParams();
+      
+      if (searchQuery) {
+        queryParams.append('search', searchQuery);
+      }
+      if (filter !== 'all') {
+        queryParams.append('filter', filter);
+      }
+      if (dateRange?.from) {
+        queryParams.append('fromDate', dateRange.from.toISOString());
+      }
+      if (dateRange?.to) {
+        queryParams.append('toDate', dateRange.to.toISOString());
+      }
+
+      const response = await fetch(`/api/tickets?${queryParams.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch tickets');
+      }
+
       const data = await response.json();
       setTickets(data);
     } catch (error) {
       console.error('Failed to fetch tickets:', error);
-      // toast({
-      //   title: 'Warning',
-      //   description: 'Could not load tickets. Please try again later.',
-      //   variant: 'destructive',
-      // });
       showNotification({
         type: 'error',
-        message: 'Не удалось загрузить тикеты. Пожалуйста, попробуйте позже.',
+        message: 'Не удалось загрузить тикеты. Пожалуйста, попробуйте позже.',
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStatusChange = (status: 'OPEN' | 'IN_PROGRESS' | 'CLOSED') => {
-    if (!selectedTicket) return;
-
-    const currentStatus = selectedTicket.status;
-
-    if (currentStatus === 'IN_PROGRESS' && status === 'OPEN') {
-      // toast({
-      //   title: 'Invalid Action',
-      //   description: 'Cannot move an IN_PROGRESS ticket back to OPEN.',
-      //   variant: 'destructive',
-      // });
-      showNotification({
-        type: 'error',
-        message: 'Невозможно переместить IN_PROGRESS тикет назад в OPEN',
-      });
-      return;
-    };
-    
-    if (currentStatus === 'OPEN' && status === 'IN_PROGRESS') {
-      // toast({
-      //   title: 'Invalid Action',
-      //   description: 'Tickets automatically move to IN_PROGRESS when you take action.',
-      //   variant: 'destructive',
-      // });
-      showNotification({
-        type: 'warning',
-        message: 'Тикеты автоматически меняют статус на IN_PROGRESS при ответе админа',
-      });
-      return;
-    };
-
-    if (currentStatus === 'CLOSED' && status === 'OPEN') {
-      // toast({
-      //   title: 'Invalid Action',
-      //   description: 'Cannot move a CLOSED ticket back to OPEN.',
-      //   variant: 'destructive',
-      // });
-      showNotification({
-        type: 'warning',
-        message: 'Нельзя переместить CLOSED тикет назад в OPEN',
-      });
-      return;
+  const formatDate = (dateString: string) => {
+    try {
+      if (!dateString) return 'Дата не указана';
+      const date = new Date(dateString);
+      // Проверяем валидность даты
+      if (isNaN(date.getTime())) return 'Некорректная дата';
+      return format(date, 'dd.MM.yyyy HH:mm', { locale: ru });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Ошибка формата даты';
     }
-
-
-    if (status === 'CLOSED') {
-      // Запросить закрытие
-      console.log('Requesting closure for ticket:', selectedTicket.id);
-      onRequestClosure(selectedTicket.id);
-      setSelectedTicket((prev) =>
-        prev ? { ...prev, pendingClosure: true } : null
-      ); 
-      // toast({
-      //   title: 'Closure Requested',
-      //   description: 'The user has been notified to confirm the closure.',
-      // });
-      showNotification({
-        type: 'info',
-        message: 'Пользователь был уведомлен о запросе на закрытие',
-      });
-      return;
-    }
-
-    if (status === 'IN_PROGRESS') {
-      if (currentStatus === 'CLOSED') {
-        console.log(`Changing status of ticket ${selectedTicket.id} to IN_PROGRESS`);
-        updateTicketStatus(selectedTicket.id, 'IN_PROGRESS');
-        setSelectedTicket((prev) =>
-          prev ? { ...prev, status: 'IN_PROGRESS' } : null
-        );
-        // toast({
-        //   title: 'Status Updated',
-        //   description: 'Ticket reopened and moved to In Progress.',
-        // });
-        showNotification({
-          type: 'success',
-          message: 'Статус обновлен. Тикет переоткрыт и перемещён в статус IN_PROGRESS',
-        });
-        
-        return;
-      }
-    }
-
-    // toast({
-    //   title: 'Invalid Transition',
-    //   description: `Cannot transition from ${currentStatus} to ${status}.`,
-    //   variant: 'destructive',
-    // });
-    showNotification({
-      type: 'error',
-      message: 'Нельзя перейти из статуса ' + currentStatus + ' в ' + status,
-    });
-    
-
-    
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'OPEN':
-        return 'bg-red-100 text-red-800';
-      case 'IN_PROGRESS':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'CLOSED':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const getStatusLabel = (status: string) => {
+    const labels = {
+      OPEN: 'Открыто',
+      IN_PROGRESS: 'В работе',
+      CLOSED: 'Закрыто'
+    };
+    return labels[status as keyof typeof labels] || status;
+  };
+
+  const getStatusVariant = (status: string) => {
+    const variants = {
+      OPEN: 'default',
+      IN_PROGRESS: 'secondary',
+      CLOSED: 'outline'
+    };
+    return variants[status as keyof typeof variants] || 'default';
+  };
+
+  const handleStatusChange = (newStatus: 'OPEN' | 'IN_PROGRESS' | 'CLOSED') => {
+    if (!selectedTicket) return;
+
+    const { status: currentStatus } = selectedTicket;
+    
+    // Разрешенные переходы для админа
+    const allowedTransitions = {
+      OPEN: ['IN_PROGRESS', 'CLOSED'],
+      IN_PROGRESS: ['CLOSED'],
+      CLOSED: ['IN_PROGRESS']
+    };
+
+    if (!allowedTransitions[currentStatus]?.includes(newStatus)) {
+      showNotification({
+        type: 'error',
+        message: `Невозможно изменить статус с ${getStatusLabel(currentStatus)} на ${getStatusLabel(newStatus)}`
+      });
+      return;
     }
+
+    updateTicketStatus(selectedTicket.id, newStatus, (success) => {
+      if (success) {
+        setSelectedTicket((prev) => (prev ? { ...prev, status: newStatus } : null));
+        showNotification({
+          type: 'success',
+          message: `Статус обращения обновлен на ${getStatusLabel(newStatus)}`,
+        });
+      } else {
+        showNotification({
+          type: 'error',
+          message: 'Не удалось обновить статус обращения',
+        });
+      }
+    });
+  };
+
+  const renderTicketList = () => {
+    return (
+      <ScrollArea className="h-[calc(100vh-200px)]">
+        {tickets.map((ticket) => (
+          <Card
+            key={ticket.id}
+            className={`p-4 mb-2 cursor-pointer ${
+              selectedTicket?.id === ticket.id ? 'border-primary' : ''
+            }`}
+            onClick={() => setSelectedTicket(ticket)}
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="font-medium">
+                  Паспорт: {ticket.passport.sn} / {ticket.passport.orderNumber}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {formatDate(ticket.dateCreated)}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+              <Badge variant={ticket.status === 'CLOSED' ? 'outline' : 'default'}>{ticket.status}</Badge>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </ScrollArea>
+    );
   };
 
   if (status === 'loading' || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      
-      <div className="flex-1 p-8">
-        <div className="mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Входящие обращения</h1>
-            <div className="relative w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Поиск по серийному номеру..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
+    <div className="container mx-auto p-6">
+      <div className="flex gap-4 mb-6 items-center">
+        <div className="flex-1">
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Все обращения" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все обращения</SelectItem>
+              <SelectItem value="open">Открытые</SelectItem>
+              <SelectItem value="in_progress">В обработке</SelectItem>
+              <SelectItem value="closed">Закрытые</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <DateRangePicker
+          value={dateRange}
+          onChange={setDateRange}
+        />
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+          <span className="text-sm text-muted-foreground">
+            {isConnected ? 'Подключено' : 'Отключено'}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[400px,1fr] gap-6">
+        <div className="bg-muted/10 rounded-lg p-4">
+          {renderTicketList()}
+        </div>
+        
+        {selectedTicket ? (
+          <div className="bg-muted/10 rounded-lg p-4">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold mb-2">
+                  Обращение #{selectedTicket.id}
+                </h2>
+                <div className="text-muted-foreground">
+                  Паспорт: {selectedTicket.passport.sn} / {selectedTicket.passport.orderNumber}
+                </div>
+              </div>
+              <Select
+                value={selectedTicket.status}
+                onValueChange={(value) => handleStatusChange(value as 'OPEN' | 'IN_PROGRESS' | 'CLOSED')}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['OPEN', 'IN_PROGRESS', 'CLOSED'].map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {getStatusLabel(status)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="h-[calc(100vh-320px)] flex flex-col">
+              <Chat
+                ticketId={selectedTicket.id}
+                sessionId={adminSessionId}
+                role="admin"
               />
             </div>
           </div>
-
-          <div className="grid grid-cols-3 gap-6">
-            <div className="col-span-1 bg-white rounded-lg shadow">
-              <div className="p-4 border-b">
-                <h2 className="font-semibold">Tickets</h2>
-              </div>
-              <ScrollArea className="h-[calc(100vh-12rem)]">
-                <div className="p-4 space-y-2">
-                  {tickets.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                        selectedTicket?.id === ticket.id
-                          ? 'bg-primary/10'
-                          : 'hover:bg-gray-50'
-                      }`}
-                      onClick={() => setSelectedTicket(ticket)}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">PC: {ticket.pc.sn}</span>
-                        <Badge className={getStatusColor(ticket.status)}>
-                          {ticket.status}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {format(new Date(ticket.createdAt), 'MMM d, yyyy HH:mm')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-
-            <div className="col-span-2">
-              {selectedTicket ? (
-                <Card className="h-full">
-                  <div className="p-4 border-b flex justify-between items-center">
-                    <div>
-                      <h2 className="font-semibold">PC: {selectedTicket.pc.sn}</h2>
-                      {selectedTicket.pc.descr && (
-                        <p className="text-sm text-gray-500">{selectedTicket.pc.descr}</p>
-                      )}
-                    </div>
-                    {!selectedTicket.pendingClosure ? (
-                        <Select
-                          value={selectedTicket.status}
-                          onValueChange={(value) => handleStatusChange(value as 'OPEN' | 'IN_PROGRESS' | 'CLOSED')}
-                        >
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="OPEN" disabled={selectedTicket.status !== 'IN_PROGRESS'}>Open</SelectItem>
-                            <SelectItem value="IN_PROGRESS" disabled={selectedTicket.status === 'OPEN'}>In Progress</SelectItem>
-                            <SelectItem value="CLOSED" disabled={selectedTicket.status === 'CLOSED'}>Closed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <p className="text-sm text-yellow-500">Ожидание подтверждения</p>
-                      )}
-
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto">
-                  {selectedTicket.status === 'CLOSED' ?  (
-                      <div className="text-center text-muted-foreground mt-10">
-                      Обращение закрыто. Вы не можете отправить сообщения.
-                    </div>
-                  ) : (
-                    
-                          <TicketChat
-                          ticketId={selectedTicket.id}
-                          role={'admin'}
-                          messages={selectedTicket.messages}
-                          className="h-full"
-                          />
-                    
-                  )}
-
-                  </div>
-                </Card>
-              ) : (
-                <Card className="h-full flex items-center justify-center text-gray-500">
-                  Выберите обращение чтобы увидеть сообщения
-                </Card>
-              )}
-            </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            Выберите обращение для просмотра
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

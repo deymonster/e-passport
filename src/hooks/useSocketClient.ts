@@ -2,57 +2,84 @@
 
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { Message } from '@/types/message';
 
-console.log('Socket.io client:', io);
-
-interface Message {
-  id: number;
-  content: string;
-  createdAt: string;
-  isAdmin: boolean;
-  ticketId: number;
-}
-
-export function useSocketClient(ticketId: number, role: 'user' | 'admin') {
+export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessionId: string) {
   const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const messageHandlerRef = useRef<((message: Message) => void) | null>(null);
 
   useEffect(() => {
-    if (!ticketId) {
-      console.warn('ticketId is missing');
+    if (!ticketId || !sessionId) {
+      setError('Отсутствует ID тикета или sessionId');
       return;
     }
 
+    if (!role) {
+      setError('Роль пользователя не указана');
+      return;
+    }
+
+
     if (!socketRef.current) {
-      console.log('Initializing WebSocket connection');
       socketRef.current = io('http://localhost:4000', {
         transports: ['websocket'],
         path: '/socket.io/',
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        query: {
+          ticketId,
+          role,
+          sessionId
+        }
       });
-      console.log('Socket initialized:', socketRef.current);
     }
 
     const socket = socketRef.current;
 
     socket.on('connect', () => {
       setIsConnected(true);
+      setError(null);
       console.log('Connected to WebSocket:', socket.id);
 
-      socket.emit('authenticate', { role, ticketId });
-      console.log(`Authenticated as ${role} for ticket ${ticketId}`);
-
+      // Аутентификация и присоединение к комнате тикета
+      socket.emit('authenticate', { role, ticketId, sessionId });
       socket.emit('joinTicket', ticketId);
-      console.log('Joining ticket:', ticketId);
     });
 
+    socket.on('authenticated', () => {
+      console.log('Successfully authenticated');
+      setError(null);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Connection error:', err);
+      setError('Ошибка подключения к серверу');
+      setIsConnected(false);
+    });
 
     socket.on('disconnect', () => {
       setIsConnected(false);
-      console.log('Disconnected from WebSocket');
+      setError('Соединение потеряно');
     });
 
     socket.on('error', (error) => {
       console.error('Socket error:', error);
+      setError(error?.message || 'Произошла ошибка при работе с сервером');
+    });
+
+    socket.on('unauthorized', (error) => {
+      console.error('Unauthorized:', error);
+      setError('Нет доступа к чату');
+      setIsConnected(false);
+    });
+
+    socket.on('newMessage', (message: Message) => {
+      if (messageHandlerRef.current) {
+        messageHandlerRef.current(message);
+      }
     });
 
     return () => {
@@ -62,120 +89,113 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin') {
         socketRef.current = null;
       }
     };
+  }, [ticketId, role, sessionId]);
+
+  const sendMessage = useCallback(async (content: string): Promise<boolean> => {
+    if (!socketRef.current?.connected) {
+      setError('Нет подключения к серверу');
+      return false;
+    }
+
+    const isAdmin = role === 'admin';
+
+    return new Promise((resolve) => {
+      socketRef.current?.emit(
+        'message',
+        {
+          content,
+          ticketId,
+          isAdmin,
+        },
+        (success: boolean) => {
+          console.log('Server callback:', success);
+          if (success) {
+            console.log('Message sent successfully');
+          } else {
+            setError('Ошибка при отправке сообщения');
+          }
+          resolve(success);
+        }
+      );
+    });
   }, [ticketId, role]);
 
-  // Отправка сообщения в чат через сервер WebSocket  аргументы content: текст сообщения. и isAdmin 
-  const sendMessage = useCallback(
-    async (content: string, isAdmin: boolean) => {
-      if (!socketRef.current) {
-        console.warn('Socket is not initialized');
-        return false;
-      }
+  const onNewMessage = useCallback((handler: (message: Message) => void) => {
+    messageHandlerRef.current = handler;
+  }, []);
 
-      try {
-        socketRef.current.emit('message', { ticketId, content, isAdmin });
-        return true;
-      } catch (error) {
-        console.error('Error sending message:', error);
-        return false;
-      }
-    },
-    [ticketId]
-  );
-
-  // Инициирует запрос на закрытие тикета администратором.
   const onRequestClosure = useCallback((ticketId: number) => {
     if (!socketRef.current) return;
     console.log('Requesting closure for ticket from hook:', ticketId);
     socketRef.current.emit('requestClosure', { ticketId });
   }, []);
 
-  // Слушает событие closureRequested, когда администратор инициирует запрос на закрытие тикета.
   const onClosureRequested = useCallback(
     (callback: (ticketId: number) => void) => {
       if (!socketRef.current) {
         console.warn('Socket is not initialized for closureRequested listener');
         return () => {};
       }
-  
+
       socketRef.current.on('closureRequested', (data: { ticketId: number }) => {
         callback(data.ticketId);
       });
-  
+
       return () => {
         socketRef.current?.off('closureRequested', callback);
       };
     },
     []
   );
-  
-  // Отправляет подтверждение закрытия тикета от пользователя.
+
   const onConfirmClosure = useCallback(() => {
     if (!socketRef.current) return;
 
     socketRef.current.emit('confirmClosure', { ticketId });
   }, [ticketId]);
 
-  // Слушает событие closureConfirmed, когда пользователь подтверждает закрытие тикета.
   const onClosureConfirmed = useCallback(
     (callback: (ticketId: number) => void) => {
       if (!socketRef.current) {
         console.warn('Socket is not initialized for closureConfirmed listener');
         return () => {};
       }
-  
+
       socketRef.current.on('closureConfirmed', (data: { ticketId: number }) => {
         callback(data.ticketId);
       });
-  
+
       return () => {
         socketRef.current?.off('closureConfirmed', callback);
       };
     },
     []
   );
-  
-  // Отправляет отклонение запроса на закрытие тикета от пользователя.
+
   const onDeclineClosure = useCallback(() => {
     if (!socketRef.current) return;
 
     socketRef.current.emit('declineClosure', { ticketId });
   }, [ticketId]);
 
-  // Слушает событие closureDeclined, когда пользователь отклоняет запрос на закрытие тикета.
   const onClosureDeclined = useCallback(
     (callback: (ticketId: number) => void) => {
       if (!socketRef.current) {
         console.warn('Socket is not initialized for closureDeclined listener');
         return () => {};
       }
-  
+
       socketRef.current.on('closureDeclined', (data: { ticketId: number }) => {
         callback(data.ticketId);
       });
-  
+
       return () => {
         socketRef.current?.off('closureDeclined', callback);
       };
     },
     []
   );
-  
-  // Слушает событие newMessage, когда приходит новое сообщение в тикете.
-  const onNewMessage = useCallback((callback: (message: Message) => void) => {
-    if (!socketRef.current) {
-      console.warn('Socket is not initialized for newMessage listener');
-      return () => {};
-    }
 
-    socketRef.current.on('newMessage', callback);
-
-    return () => {
-      socketRef.current?.off('newMessage', callback);
-    };
-  }, []);
-
-  // Слушает событие ticketStatusUpdated, когда изменяется статус тикета.
   const onTicketStatusUpdated = useCallback((callback: (updatedTicket: { id: number, status: string }) => void) => {
     if (!socketRef.current) {
       console.warn('Socket is not initialized for ticketStatusUpdated listener');
@@ -189,31 +209,41 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin') {
     };
   }, []);
 
-  // Инициирует изменение статуса тикета.
   const updateTicketStatus = useCallback(
-    (ticketId: number, status: 'OPEN' | 'IN_PROGRESS' | 'CLOSED') => {
+    (ticketId: number, status: 'OPEN' | 'IN_PROGRESS' | 'CLOSED', callback?: (success: boolean) => void) => {
       if (!socketRef.current) {
         console.warn('Socket is not initialized for updateTicketStatus');
         return;
       }
-  
-      socketRef.current.emit('updateTicketStatus', { ticketId, status });
+
+      socketRef.current.emit(
+        'updateTicketStatus',
+        { ticketId, status },
+        (success: boolean) => {
+          if (success) {
+            console.log(`Ticket ${ticketId} status updated to ${status}`);
+          } else {
+            console.error(`Failed to update status for ticket ${ticketId}`);
+          }
+          if (callback) callback(success);
+        }
+      );
     },
     []
   );
 
-
   return {
+    isConnected,
+    error,
     sendMessage,
     onNewMessage,
-    onTicketStatusUpdated,
-    updateTicketStatus,
     onRequestClosure,
     onClosureRequested,
     onClosureConfirmed,
     onConfirmClosure,
     onDeclineClosure,
     onClosureDeclined,
-    isConnected,
+    onTicketStatusUpdated,
+    updateTicketStatus,
   };
 }

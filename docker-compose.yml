@@ -4,13 +4,16 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: epassport
-      POSTGRES_PASSWORD: epassport123
-      POSTGRES_DB: epassport
+      POSTGRES_USER: ${POSTGRES_USER:-epassport}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-epassport}
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - epassport_network
+    restart: unless-stopped
 
   web:
     build:
@@ -18,15 +21,31 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    environment:
-      - DATABASE_URL=postgresql://epassport:epassport123@db:5433/epassport
-      - JWT_SECRET=your-secret-key-here
+    env_file:
+      - .env.production
     depends_on:
       - db
-    volumes:
-      - ./:/app
-      - /app/node_modules
-      - /app/.next
+    networks:
+      - epassport_network
+    restart: unless-stopped
+
+  websocket:
+    build:
+      context: .
+      dockerfile: Dockerfile.websocket
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env.production
+    depends_on:
+      - db
+    networks:
+      - epassport_network
+    restart: unless-stopped
+
+networks:
+  epassport_network:
+    driver: bridge
 
 volumes:
   postgres_data:

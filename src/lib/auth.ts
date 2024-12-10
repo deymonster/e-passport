@@ -1,9 +1,13 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { compare } from "bcryptjs";
 import { AuthOptions } from "next-auth";
+import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { User } from "next-auth";
+
+import { NextResponse, NextRequest } from "next/server";
+
 
 // Определение типа для User
 type UserRole = "ADMIN" | "USER";
@@ -79,3 +83,20 @@ export const authOptions: AuthOptions = {
   },
   debug: process.env.NODE_ENV === "development",
 };
+
+// Функция-обертка для проверки авторизации только для администратора
+export function withAdminAuth<T extends { params: { [key: string]: string } }>(
+  handler: (req: NextRequest, context: T) => Promise<NextResponse>
+) {
+  return async (req: NextRequest, context: T) => {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    return handler(req, context); // Передаём req и context
+  };
+}
+
+

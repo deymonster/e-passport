@@ -76,7 +76,7 @@ npx tsx scripts/create-admin.ts
 yarn dev
 
 # В отдельном терминале запустите WebSocket сервер
-node websocket-server.js
+yarn tsx websocket-server.ts
 ```
 
 #### Продакшн с Docker

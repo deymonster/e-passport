@@ -1,22 +1,33 @@
 import { prisma } from '../src/lib/prisma';
 import bcrypt from 'bcryptjs';
 
-
 async function main() {
-  const password = await bcrypt.hash('admin123', 12);
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@epassport.com';
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminName = process.env.ADMIN_NAME || 'Admin User';
+
+  if (!adminPassword) {
+    console.error('ADMIN_PASSWORD environment variable is required');
+    process.exit(1);
+  }
+
+  const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@epassport.com' },
-    update: {},
+    where: { email: adminEmail },
+    update: {
+      password: hashedPassword,
+      name: adminName,
+    },
     create: {
-      email: 'admin@epassport.com',
-      name: 'Admin User',
-      password,
+      email: adminEmail,
+      name: adminName,
+      password: hashedPassword,
       role: 'ADMIN',
     },
   });
 
-  console.log('Admin user created:', admin);
+  console.log('Admin user created:', { email: admin.email, name: admin.name, role: admin.role });
 }
 
 main()

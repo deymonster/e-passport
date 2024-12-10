@@ -31,25 +31,67 @@ model User {
   @@map("users")
 }
 
-model PC {
-  id            Int      @id @default(autoincrement())
-  sn            String   @unique
-  pin           String
-  descr         String?
-  garant        DateTime
-  block         Boolean  @default(false)
-  documentPath  String?
-  tickets       Ticket[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
 
-  @@map("pc")
+enum DeviceType {
+  ARM          
+  PC
+}
+
+enum WarrantyPeriod {
+  MONTHS_12
+  MONTHS_24
+  MONTHS_36
+}
+
+enum DocumentType {
+  USER_MANUAL
+  PRODUCT_IMAGE
+  TECHNICAL_SPEC
+  OTHER
+}
+
+model Batch {
+  id             Int             @id @default(autoincrement())
+  orderNumber     String     
+  registryRecord RegistryRecord? @relation(fields: [registryRecordId], references: [id])
+  registryRecordId Int?
+  warrantyPeriod WarrantyPeriod  
+  type           DeviceType      
+  productionDate DateTime        
+  documents      BatchDocument[]
+  passports      Passport[]      
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@map("batches")
+}
+
+model Passport {
+  id             Int      @id @default(autoincrement())
+  sn             String   @unique
+  orderNumber    String   
+  name           String?
+  registryRecord RegistryRecord? @relation(fields: [registryRecordId], references: [id])
+  registryRecordId Int?
+  type           DeviceType      @default(PC)
+  productionDate DateTime
+  warrantyPeriod WarrantyPeriod  @default(MONTHS_12)
+  documents      PassportDocument[]
+  
+  batch          Batch?          @relation(fields: [batchId], references: [id])
+  batchId        Int?
+  tickets        Ticket[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("passport")
 }
 
 model Ticket {
   id              Int       @id @default(autoincrement())
-  pc              PC        @relation(fields: [pcId], references: [id])
-  pcId            Int
+  sessionId       String?   // Привязка обращения к пользователю
+  passport        Passport        @relation(fields: [passportId], references: [id])
+  passportId      Int       
   dateCreated     DateTime  @default(now())
   status          Status    @default(OPEN)
   messages        Message[]
@@ -57,8 +99,9 @@ model Ticket {
   confirmedByUser Boolean   @default(false)
   pendingClosure  Boolean   @default(false)
 
-  @@unique([pcId, status])
+  @@unique([passportId, status])
   @@map("tickets")
+  @@index([passportId])
 }
 
 model Message {
@@ -78,8 +121,56 @@ model Log {
   user      User     @relation(fields: [userId], references: [id])
   userId    Int
   action    String
-  date      DateTime @default(now())
+  date      DateTime @default(now()) 
   details   String?
 
   @@map("logs")
+  @@index([date])
+}
+
+model RegistryRecord {
+  id      Int    @id @default(autoincrement())
+  name    String
+  url     String
+  batches  Batch[]
+  passports Passport[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("registry_records")
+}
+
+model Document {
+  id          Int       @id @default(autoincrement())
+  name        String
+  filePath    String    @unique
+  type        DocumentType @default(OTHER)
+  batches     BatchDocument[]
+  passports   PassportDocument[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("documents")
+}
+
+model BatchDocument {
+  batch       Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batchId     Int
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId  Int
+  createdAt   DateTime  @default(now())
+
+  @@id([batchId, documentId])
+  @@map("batch_documents")
+}
+
+model PassportDocument {
+  passport    Passport  @relation(fields: [passportId], references: [id], onDelete: Cascade)
+  passportId  Int
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId  Int
+  createdAt   DateTime  @default(now())
+
+  @@id([passportId, documentId])
+  @@map("passport_documents")
 }
