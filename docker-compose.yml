@@ -8,25 +8,37 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-epassport}
     ports:
-      - "5433:5432"
+      - "0.0.0.0:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - epassport_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-epassport} -d ${POSTGRES_DB:-epassport}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 
   web:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "0.0.0.0:3000:3000"
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+          condition: service_healthy
     networks:
       - epassport_network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "registry.npmmirror.com:104.16.24.34"
     restart: unless-stopped
 
   websocket:
@@ -34,13 +46,19 @@ services:
       context: .
       dockerfile: Dockerfile.websocket
     ports:
-      - "4000:4000"
+      - "0.0.0.0:4000:4000"
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+          condition: service_healthy
     networks:
       - epassport_network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "registry.npmmirror.com:104.16.24.34"
     restart: unless-stopped
 
 networks:

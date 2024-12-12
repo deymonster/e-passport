@@ -2,11 +2,13 @@
 
 import * as React from 'react';
 import { format } from 'date-fns';
+import { ru } from "date-fns/locale";
 import { Calendar as CalendarIcon } from 'lucide-react';
-import { DayPicker } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+
 
 interface DatePickerProps {
   value?: Date;
@@ -18,7 +20,7 @@ interface DatePickerProps {
 export function DatePicker({
   value,
   onChange,
-  placeholder = 'Pick a date',
+  placeholder = 'Выберите дату',
   className,
 }: DatePickerProps) {
   const [date, setDate] = React.useState<Date | undefined>(value);
@@ -44,12 +46,13 @@ export function DatePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <DayPicker
-          mode="single"
-          selected={date}
-          onSelect={handleSelect}
-          initialFocus
-        />
+        <Calendar
+            mode="single"
+            selected={date}
+            onSelect={handleSelect}
+            initialFocus
+            locale={ru}
+          />
       </PopoverContent>
     </Popover>
   );

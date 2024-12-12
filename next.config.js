@@ -3,6 +3,7 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['@radix-ui/react-icons', '@radix-ui/react-select', 'lucide-react'],
   },
+  output: 'standalone',
   images: {
     domains: [],
   },

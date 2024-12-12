@@ -1,19 +1,14 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
+
 import { compare } from "bcryptjs";
 import { AuthOptions } from "next-auth";
 import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
-import { User } from "next-auth";
-
 import { NextResponse, NextRequest } from "next/server";
 
-
-// Определение типа для User
 type UserRole = "ADMIN" | "USER";
 
 export const authOptions: AuthOptions = {
-  adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -28,32 +23,37 @@ export const authOptions: AuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            password: true,
+            role: true,
+          },
         });
 
         if (!user || !user.password) {
-          console.log("User not found or no password");
           return null;
         }
 
         const isValid = await compare(credentials.password, user.password);
 
         if (!isValid) {
-          console.log("Invalid password");
           return null;
         }
 
-        // Явно указываем возвращаемый объект как User
         return {
           id: user.id.toString(),
           email: user.email,
           name: user.name,
           role: user.role as UserRole,
-        } as User;
+        };
       },
     }),
   ],
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: "/login",
@@ -62,21 +62,14 @@ export const authOptions: AuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user.role as string).toUpperCase();
-        token.email = user.email;
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user = {
-          ...session.user,
-          id: token.id as string,
-          email: token.email as string,
-          name: session.user?.name || null,
-          role:
-            token.role === "USER" || token.role === "ADMIN" ? token.role : "USER",
-        };
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as UserRole;
       }
       return session;
     },

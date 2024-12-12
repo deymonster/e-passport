@@ -35,7 +35,7 @@ interface RegistryRecord {
 interface Passport {
   id: number;
   sn: string;
-  name: string;
+  name: string | null;
   orderNumber: string;
   productionDate: string;
   warrantyPeriod: 'MONTHS_12' | 'MONTHS_24' | 'MONTHS_36';
@@ -46,7 +46,7 @@ interface Passport {
 
 const formSchema = z.object({
   sn: z.string().min(1, "Введите серийный номер"),
-  name: z.string().min(1, "Введите название"),
+  name: z.string().min(1, "Введите название").nullable(),
   warrantyPeriod: z.enum(['MONTHS_12', 'MONTHS_24', 'MONTHS_36']),
   type: z.enum(['ARM', 'PC']),
   productionDate: z.date({
@@ -72,28 +72,21 @@ const PassportModal = ({
   onSave,
   isEditMode = true,
 }: PassportModalProps) => {
+  
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [registryRecords, setRegistryRecords] = useState<RegistryRecord[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedRegistryRecord, setSelectedRegistryRecord] = useState<RegistryRecord | null>(null);
+  
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      sn: "",
-      name: "",
-      warrantyPeriod: "MONTHS_12" as const,
-      type: "PC" as const,
-      productionDate: new Date(),
-      orderNumber: "",
-      registryRecordId: null,
-      documents: [],
-    },
   });
 
   useEffect(() => {
     if (isOpen && passport) {
-      form.reset({
+      const formData = {
         sn: passport.sn || "",
         name: passport.name || "",
         warrantyPeriod: passport.warrantyPeriod,
@@ -102,12 +95,16 @@ const PassportModal = ({
         orderNumber: passport.orderNumber || "",
         registryRecordId: passport.registryRecord?.id || null,
         documents: passport.documents.map(d => d.id),
-      });
+      };
+      form.reset(formData);
       setSelectedRegistryRecord(passport.registryRecord || null);
     }
-  }, [isOpen, passport, form]);
+  }, [isOpen, passport]);
 
+  // get documents and registry records
   useEffect(() => {
+    let mounted = true;
+
     const fetchData = async () => {
       try {
         const [docsResponse, registryResponse] = await Promise.all([
@@ -122,8 +119,10 @@ const PassportModal = ({
         const docsData = await docsResponse.json();
         const registryData = await registryResponse.json();
         
-        setDocuments(docsData);
-        setRegistryRecords(registryData);
+        if (mounted) {
+          setDocuments(docsData);
+          setRegistryRecords(registryData);
+        }
       } catch (error) {
         console.error('Failed to fetch data:', error);
       }
@@ -132,47 +131,34 @@ const PassportModal = ({
     if (isOpen) {
       fetchData();
     }
+
+    return () => {
+      mounted = false;
+    };
   }, [isOpen]);
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!passport || !passport.id) {
-      console.error('No passport ID provided');
-      return;
-    }
 
+  
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true);
+
     try {
-      const updatedData = {
-        sn: values.sn,
-        orderNumber: values.orderNumber,
-        name: values.name,
-        type: values.type,
+      const updatedPassport: Passport = {
+        ...passport!,
+        ...values,
         productionDate: values.productionDate.toISOString(),
-        warrantyPeriod: values.warrantyPeriod,
-        registryRecordId: values.registryRecordId || null,
-        batchId: values.batchId || null,
-        documentIds: values.documents || [],
+        documents: passport!.documents.map((doc) => ({
+          ...doc,
+          id: doc.id,
+        })),
+        registryRecord: passport!.registryRecord,
       };
 
-      const response = await fetch(`/api/passport/${passport.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update passport');
-      }
-
-      const updatedPassport = await response.json();
-      onSave(updatedPassport);
+      await onSave(updatedPassport);
       onClose();
     } catch (error) {
-      console.error('Error updating passport:', error);
-      throw error; // Пробрасываем ошибку для обработки в родительском компоненте
+      console.error("Error updating passport:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -194,7 +180,7 @@ const PassportModal = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => open || onClose()}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Редактировать паспорт' : 'Просмотр паспорта'}</DialogTitle>
@@ -223,7 +209,7 @@ const PassportModal = ({
                     <FormItem>
                       <FormLabel>Название</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -293,11 +279,10 @@ const PassportModal = ({
                       <FormLabel>Запись в реестре</FormLabel>
                       <Select
                         onValueChange={(value) => {
-                          const id = value === "null" ? null : parseInt(value);
-                          field.onChange(id);
-                          setSelectedRegistryRecord(
-                            id ? registryRecords.find(r => r.id === id) || null : null
-                          );
+                          const numValue = value === "null" ? null : Number(value);
+                          field.onChange(numValue);
+                          const record = registryRecords.find(r => r.id === numValue) || null;
+                          setSelectedRegistryRecord(record);
                         }}
                         value={field.value?.toString() || "null"}
                       >
@@ -359,7 +344,7 @@ const PassportModal = ({
                       <FormControl>
                         <DatePicker
                           selected={field.value}
-                          onChange={(date: Date | null, event?: MouseEvent | KeyboardEvent) => field.onChange(date)}
+                          onChange={(date: Date | null) => field.onChange(date)}
                           dateFormat="dd.MM.yyyy"
                           className="w-full p-2 border rounded-md"
                         />
@@ -377,34 +362,25 @@ const PassportModal = ({
                   <FormItem>
                     <FormLabel>Документы</FormLabel>
                     <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                      {documents.map((doc) => (
-                        <div
-                          key={doc.id}
-                          className="flex items-center gap-2 p-2 hover:bg-gray-50"
-                        >
+                    {documents.map((doc) => (
+                        <div key={doc.id} className="flex items-center gap-4">
                           <input
                             type="checkbox"
-                            id={`doc-${doc.id}`}
-                            checked={field.value?.includes(doc.id)}
+                            checked={field.value.includes(doc.id)}
                             onChange={(e) => {
-                              const newValue = e.target.checked
-                                ? [...(field.value || []), doc.id]
-                                : (field.value || []).filter((id) => id !== doc.id);
-                              field.onChange(newValue);
+                              const updated = e.target.checked
+                                ? [...field.value, doc.id]
+                                : field.value.filter((id) => id !== doc.id);
+                              field.onChange(updated);
                             }}
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                           />
-                          <label
-                            htmlFor={`doc-${doc.id}`}
-                            className="text-sm text-gray-700 flex flex-col"
-                          >
-                            <span className="font-medium">{doc.name}</span>
-                            <span className="text-xs text-gray-500">
-                              {getDocumentTypeName(doc.type)}
-                            </span>
-                          </label>
+                          <span>{doc.name}</span>
+                          <span className="text-sm text-gray-500">({getDocumentTypeName(doc.type)})</span>
                         </div>
                       ))}
+                      {documents.length === 0 && (
+                        <p className="text-sm text-gray-500">Нет доступных документов</p>
+                      )}
                     </div>
                     <FormMessage />
                   </FormItem>

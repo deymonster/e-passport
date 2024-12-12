@@ -21,6 +21,7 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DateRange } from "react-day-picker";
 import { useSocketClient } from '@/hooks/useSocketClient';
 import { useNotification } from '@/hooks/useNotification';
+import { generateUUID } from '@/lib/utils';
 
 interface Message {
   id: number;
@@ -51,7 +52,7 @@ function getAdminSessionId(): string {
   
   let sessionId = localStorage.getItem('adminSessionId');
   if (!sessionId) {
-    sessionId = crypto.randomUUID();
+    sessionId = generateUUID();
     localStorage.setItem('adminSessionId', sessionId);
   }
   return sessionId;
@@ -274,7 +275,7 @@ export default function TicketsPage() {
     <div className="container mx-auto p-6">
       <div className="flex gap-4 mb-6 items-center">
         <div className="flex-1">
-          <Select value={filter} onValueChange={setFilter}>
+          <Select value={filter} onValueChange={(value) => setFilter(value as 'all' | 'open' | 'in_progress' | 'closed')}>
             <SelectTrigger>
               <SelectValue placeholder="Все обращения" />
             </SelectTrigger>
@@ -288,7 +289,7 @@ export default function TicketsPage() {
         </div>
         <DateRangePicker
           value={dateRange}
-          onChange={setDateRange}
+          onChange={(range) => setDateRange(range || { from: undefined, to: undefined })}
         />
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />

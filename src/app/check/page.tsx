@@ -10,13 +10,14 @@ import { Chat } from '@/components/passport/chat';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, X } from 'lucide-react';
 import { Passport, Ticket } from '@/types/message';
+import { generateUUID } from '@/lib/utils';
 
 function getSessionId(): string | null {
   if (typeof window === 'undefined') return null;
   
   let sessionId = localStorage.getItem('sessionId');
   if (!sessionId) {
-    sessionId = crypto.randomUUID();
+    sessionId = generateUUID();
     localStorage.setItem('sessionId', sessionId);
   }
   return sessionId;
@@ -62,7 +63,7 @@ export default function CheckPage() {
       // Проверяем наличие активного тикета
       if (sessionId) {
         
-          const ticket = await getActiveTicket(data.id, sessionId, 'user');
+          const ticket = await getActiveTicket(data.id, sessionId);
           if (ticket) {
             setActiveTicket(ticket);
             }

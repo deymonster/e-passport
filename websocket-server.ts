@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import pino from 'pino';
 import { TicketRepository } from './src/lib/repositories/ticketRepository';
 import { MessageRepository } from './src/lib/repositories/messageRepository';
-import { ServerToClientEvents, ClientToServerEvents } from './src/types/socket';
+
 
 import { Request, Response } from 'express';
 

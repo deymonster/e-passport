@@ -2,12 +2,28 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Установка зависимостей
-COPY package*.json ./
-RUN npm ci
+# Установка необходимых системных библиотек
+RUN apk add --no-cache openssl
 
-# Копирование исходного кода
-COPY . .
+# Установка зависимосте Установка необходимых системных библиотек
+
+COPY package*.json yarn.lock ./
+RUN yarn config set registry https://registry.npmmirror.com && \
+    yarn config set network-timeout 300000 && \
+    yarn config set network-concurrency 1 && \
+    yarn install --network-timeout 300000 --cache-folder ./yarn_cache --verbose
+
+# Копирование только необходимых файлов
+COPY prisma ./prisma
+COPY src/lib/repositories ./src/lib/repositories
+COPY src/types ./src/types
+COPY src/lib/utils.ts ./src/lib/
+COPY src/lib/socket.ts ./src/lib/
+COPY src/lib/prisma.ts ./src/lib/
+COPY websocket-server.ts ./
+COPY tsconfig.json ./
+
+
 
 # Генерация Prisma клиента
 RUN npx prisma generate

@@ -1,12 +1,16 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import localFont from 'next/font/local'
 import './globals.css'
 import { AuthProvider } from '@/providers/auth-provider'
 import { Toaster } from '@/components/ui/toaster'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 
-const inter = Inter({ subsets: ['latin', 'cyrillic'] })
+
+const inter = localFont({
+  src: '../assets/fonts/Inter/Inter-VariableFont_opsz,wght.ttf',
+  variable: '--font-inter',
+})
 
 export const metadata: Metadata = {
   title: 'NITRINOnet E-Passport',

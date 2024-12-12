@@ -1,0 +1,15 @@
+
+node_modules
+.next
+yarn_cache
+.git
+.env
+*.log
+.DS_Store
+coverage
+.vscode
+.idea
+dist
+build
+tmp
+temp

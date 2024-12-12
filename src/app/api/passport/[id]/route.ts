@@ -2,6 +2,8 @@ import { NextResponse, NextRequest } from 'next/server';
 import { repositories } from '@/lib/repositories';
 import { withAdminAuth } from '@/lib/auth';
 
+
+
 export const PATCH = withAdminAuth(async (
   request: NextRequest,
   context: { params: { id: string } }
@@ -26,35 +28,23 @@ export const PATCH = withAdminAuth(async (
       type,
       productionDate,
       warrantyPeriod,
-      batchId,
       documentIds,
     } = body;
 
     // Удаляем registryRecordId и batchId из данных паспорта
-    const passportData = {
+    const updateData = {
       sn,
       orderNumber,
       name,
       type,
       productionDate: productionDate ? new Date(productionDate) : undefined,
       warrantyPeriod,
+      registryRecordId,
+      documentIds
+
     };
 
-    const passport = await repositories.passport.updatePassport(id, {
-      ...passportData,
-      registryRecord: registryRecordId ? {
-        connect: { id: registryRecordId }
-      } : undefined,
-      batch: batchId ? {
-        connect: { id: batchId }
-      } : undefined,
-      documents: {
-        deleteMany: {},
-        create: documentIds?.map(documentId => ({
-          documentId
-        })) || []
-      }
-    });
+    const passport = await repositories.passport.updatePassport(id, updateData);
 
     if (!passport) {
       console.error('Passport not found with ID:', id);

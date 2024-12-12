@@ -157,12 +157,31 @@ export class PassportRepository extends BaseRepository<
 
   // Обновить паспорт, добавив или удалив документы
   async updatePassport(id: number, data: any) {
+
+    const { registryRecordId, documentIds, ...passportData } = data;
+
+    // Формирование данных для обновления
+    const updateData: any = {
+      ...passportData,
+      updatedAt: new Date(),
+    };
+
+
+    // Добавляем связь с registryRecord, если registryRecordId указан
+    if (registryRecordId) {
+      updateData.registryRecord = { connect: { id: registryRecordId } };
+    }
+    // Обновляем документы
+    if (documentIds) {
+      updateData.documents = {
+        deleteMany: {}, // Удаляем все существующие документы
+        create: documentIds.map((documentId: number) => ({ documentId })),
+      };
+    }
+
     const updatedPassport = await this.prisma.passport.update({
       where: { id },
-      data: {
-        ...data,
-        updatedAt: new Date(),
-      },
+      data: updateData,
       include: {
         documents: {
           include: {
