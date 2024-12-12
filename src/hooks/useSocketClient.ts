@@ -23,7 +23,8 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
 
 
     if (!socketRef.current) {
-      socketRef.current = io('http://localhost:4000', {
+      const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://localhost:4000';
+      socketRef.current = io(wsUrl, {
         transports: ['websocket'],
         path: '/socket.io/',
         reconnection: true,

@@ -47,9 +47,9 @@ export class BatchRepository extends BaseRepository<
     orderNumber: string,
     position: number
   ): string {
-    const paddedOrderNumber = orderNumber.padStart(6, '0');
+    const paddedOrderNumber = orderNumber.padStart(8, '0');
     const paddedPosition = position.toString().padStart(6, '0');
-    return `НО${year}${month}${type}${paddedOrderNumber}${type}${paddedPosition}`;
+    return `НО${year}${month}${type}${paddedOrderNumber}${paddedPosition}`;
   }
 
   // Получение всех записей типизированных
