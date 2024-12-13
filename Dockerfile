@@ -32,6 +32,12 @@ FROM node:18-alpine AS runner
 
 WORKDIR /app
 
+# Создаем пользователя nextjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    mkdir -p /app/public/uploads && \
+    chown -R nextjs:nodejs /app
+
 # Установка необходимых системных библиотек
 RUN apk add --no-cache \
     openssl \
@@ -56,9 +62,13 @@ COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/src/lib ./src/lib
 COPY docker-entrypoint.sh .
 
-# Генерация Prisma клиента для production
+# Генерация Prisma клиента для production и установка прав
 RUN npx prisma generate && \
-    chmod +x docker-entrypoint.sh
+    chmod +x docker-entrypoint.sh && \
+    chown -R nextjs:nodejs /app
+
+# Переключаемся на пользователя nextjs
+USER nextjs
 
 EXPOSE 3000
 
