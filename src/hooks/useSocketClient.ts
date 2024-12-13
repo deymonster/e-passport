@@ -4,76 +4,57 @@ import { useEffect, useCallback, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Message } from '@/types/message';
 
-
 export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessionId: string) {
-  
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const messageHandlerRef = useRef<((message: Message) => void) | null>(null);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
 
-  useEffect(() => {
-    if (!ticketId || !sessionId) {
-      setError('Отсутствует ID тикета или sessionId');
-      return;
+  const cleanup = useCallback(() => {
+    if (socketRef.current) {
+      console.log('Cleaning up socket connection');
+      socketRef.current.emit('leaveTicket', ticketId);
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
     }
+    setIsConnected(false);
+    setError(null);
+    reconnectAttempts.current = 0;
+  }, [ticketId]);
 
-    if (!role) {
-      setError('Роль пользователя не указана');
-      return;
-    }
+  const connect = useCallback(() => {
+    if (socketRef.current?.connected) return;
 
+    const wsUrl = process.env.NODE_ENV === 'production' 
+      ? 'ws://192.168.13.24:4000'
+      : 'ws://localhost:4000';
 
-    if (!socketRef.current) {
-      
-      const wsUrl = process.env.NODE_ENV === 'production' 
-        ? 'ws://192.168.13.24:4000'
-        : 'ws://localhost:4000'; 
-      console.log('Attempting to connect to WebSocket:', wsUrl);
-      socketRef.current = io(wsUrl, {
-        transports: ['websocket'],
-        path: '/socket.io/',
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        query: {
-          ticketId,
-          role,
-          sessionId
-        }
-      });
-
-      // Добавляем логи для всех событий Socket.IO
-      socketRef.current.on('connect_error', (error) => {
-        console.error('WebSocket connect_error:', error);
-        console.error('Error details:', {
-          message: error.message,
-          type: error.name,
-          stack: error.stack
-        });
-        
-      });
-
-      socketRef.current.on('error', (error) => {
-        console.error('WebSocket error:', error);
-      });
-
-      socketRef.current.on('disconnect', (reason) => {
-        console.log('WebSocket disconnected:', reason);
-      });
-
-      socketRef.current.on('reconnect_attempt', (attemptNumber) => {
-        console.log('WebSocket reconnection attempt:', attemptNumber);
-      });
-
-    }
+    console.log('Attempting to connect to WebSocket:', wsUrl);
+    
+    socketRef.current = io(wsUrl, {
+      transports: ['websocket'],
+      path: '/socket.io/',
+      reconnection: true,
+      reconnectionAttempts: maxReconnectAttempts,
+      reconnectionDelay: 1000,
+      timeout: 10000,
+      query: {
+        ticketId,
+        role,
+        sessionId
+      }
+    });
 
     const socket = socketRef.current;
 
     socket.on('connect', () => {
+      console.log('Connected to WebSocket:', socket.id);
       setIsConnected(true);
       setError(null);
-      console.log('Connected to WebSocket:', socket.id);
+      reconnectAttempts.current = 0;
 
       // Аутентификация и присоединение к комнате тикета
       socket.emit('authenticate', { role, ticketId, sessionId });
@@ -87,13 +68,30 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
 
     socket.on('connect_error', (err) => {
       console.error('Connection error:', err);
+      console.error('Error details:', {
+        message: err.message,
+        type: err.name,
+        stack: err.stack
+      });
       setError('Ошибка подключения к серверу');
       setIsConnected(false);
+      
+      reconnectAttempts.current += 1;
+      if (reconnectAttempts.current >= maxReconnectAttempts) {
+        console.error('Max reconnection attempts reached');
+        cleanup();
+      }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      console.log('WebSocket disconnected:', reason);
       setIsConnected(false);
       setError('Соединение потеряно');
+      
+      if (reason === 'io server disconnect') {
+        // сервер принудительно отключил соединение
+        socket.connect();
+      }
     });
 
     socket.on('error', (error) => {
@@ -105,6 +103,7 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
       console.error('Unauthorized:', error);
       setError('Нет доступа к чату');
       setIsConnected(false);
+      cleanup();
     });
 
     socket.on('newMessage', (message: Message) => {
@@ -113,14 +112,28 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
       }
     });
 
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.emit('leaveTicket', ticketId);
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-    };
-  }, [ticketId, role, sessionId]);
+    socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log('WebSocket reconnection attempt:', attemptNumber);
+    });
+
+    return () => cleanup();
+  }, [ticketId, role, sessionId, cleanup]);
+
+  useEffect(() => {
+    if (!ticketId || !sessionId) {
+      setError('Отсутствует ID тикета или sessionId');
+      return;
+    }
+
+    if (!role) {
+      setError('Роль пользователя не указана');
+      return;
+    }
+
+    connect();
+
+    return () => cleanup();
+  }, [ticketId, role, sessionId, connect, cleanup]);
 
   const sendMessage = useCallback(async (content: string): Promise<boolean> => {
     if (!socketRef.current?.connected) {

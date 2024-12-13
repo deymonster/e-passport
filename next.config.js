@@ -5,7 +5,7 @@ const nextConfig = {
   },
   output: 'standalone',
   images: {
-    domains: [],
+    domains: ['localhost', '192.168.13.24'],
   },
   publicRuntimeConfig: {
     NEXT_PUBLIC_WEBSOCKET_URL: process.env.NEXT_PUBLIC_WEBSOCKET_URL,
@@ -42,6 +42,18 @@ const nextConfig = {
   // Reduce the number of pages that are pre-rendered at build time
   reactStrictMode: true,
   poweredByHeader: false,
+
+  async headers() {
+    return [
+      {
+        source: '/uploads/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,HEAD' },
+        ],
+      },
+    ];
+  },
 }
 
 export default nextConfig;

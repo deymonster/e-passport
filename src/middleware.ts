@@ -1,5 +1,6 @@
 import { withAuth } from 'next-auth/middleware'
 
+
 export default withAuth({
   pages: {
     signIn: '/admin',
@@ -9,3 +10,4 @@ export default withAuth({
 export const config = {
   matcher: ['/admin/:path*'],
 }
+

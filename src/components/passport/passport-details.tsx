@@ -17,6 +17,7 @@ import {
   MessageSquarePlus,
 } from 'lucide-react';
 import { Passport, Ticket } from '@/types/message';
+import { getFileUrl }  from '@/lib/file-utils';
 
 interface PassportDetailsProps {
   passport: Passport;
@@ -169,7 +170,7 @@ export function PassportDetails({ passport, sessionId, onOpenChat }: PassportDet
                   {passport.documents.map((doc) => (
                     <li key={doc.document.id}>
                       <a
-                        href={`/${doc.document.filePath}`}
+                        href={getFileUrl(doc.document.filePath)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-800 hover:underline"

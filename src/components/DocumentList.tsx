@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useNotification } from '@/components/Notification'
+import { getFileUrl }  from '@/lib/file-utils';
 
 interface Document {
   id: number
@@ -146,7 +147,7 @@ export default function DocumentList() {
                 <div>
                   <h4 className="font-medium">{doc.name}</h4>
                   <a
-                    href={`/${doc.filePath}`}
+                    href={getFileUrl(doc.filePath)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-blue-500 hover:underline"
