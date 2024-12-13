@@ -27,7 +27,7 @@ app.get('/', (req: Request, res: Response) => {
 // Инициализация Socket.IO с настройками CORS
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:4000"],
+    origin: process.env.NEXTAUTH_URL ? [process.env.NEXTAUTH_URL] : ["http://localhost:3000"],
     methods: ["GET", "POST"],
     credentials: true
   },

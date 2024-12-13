@@ -28,9 +28,8 @@ COPY tsconfig.json ./
 # Генерация Prisma клиента
 RUN npx prisma generate
 
-EXPOSE 4000
+EXPOSE ${NEXT_PUBLIC_WEBSOCKET_PORT:-4000}
 
-ENV PORT 4000
 ENV NODE_ENV production
 
-CMD ["npx", "tsx", "websocket-server.ts"]
+CMD ["sh", "-c", "npx tsx websocket-server.ts"]
