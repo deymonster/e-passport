@@ -396,6 +396,6 @@ io.on('connection', (socket) => {
 // Запуск сервера
 const PORT = 4000;
 server.listen(PORT, () => {
-  logger.info(`WebSocket server running on http://localhost:${PORT}`);
+  logger.info(`WebSocket server running`);
   logger.info(`WebSocket endpoint: ws://localhost:${PORT}/socket.io/`);
 });

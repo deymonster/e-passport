@@ -24,6 +24,7 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
 
     if (!socketRef.current) {
       const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://localhost:4000';
+      console.log('Attempting to connect to WebSocket:', wsUrl);
       socketRef.current = io(wsUrl, {
         transports: ['websocket'],
         path: '/socket.io/',
@@ -36,6 +37,30 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
           sessionId
         }
       });
+
+      // Добавляем логи для всех событий Socket.IO
+      socketRef.current.on('connect_error', (error) => {
+        console.error('WebSocket connect_error:', error);
+        console.error('Error details:', {
+          message: error.message,
+          type: error.name,
+          stack: error.stack
+        });
+        
+      });
+
+      socketRef.current.on('error', (error) => {
+        console.error('WebSocket error:', error);
+      });
+
+      socketRef.current.on('disconnect', (reason) => {
+        console.log('WebSocket disconnected:', reason);
+      });
+
+      socketRef.current.on('reconnect_attempt', (attemptNumber) => {
+        console.log('WebSocket reconnection attempt:', attemptNumber);
+      });
+
     }
 
     const socket = socketRef.current;
