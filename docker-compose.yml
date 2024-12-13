@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   db:
@@ -29,8 +29,6 @@ services:
         - NEXT_PUBLIC_WEBSOCKET_URL=ws://192.168.13.24:4000
     ports:
       - "0.0.0.0:3000:3000"
-    entrypoint: 
-      - NEXT_PUBLIC_WEBSOCKET_URL=ws://192.168.13.24:4000
     env_file:
       - .env
     depends_on:
