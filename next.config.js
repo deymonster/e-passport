@@ -7,6 +7,12 @@ const nextConfig = {
   images: {
     domains: [],
   },
+  publicRuntimeConfig: {
+    NEXT_PUBLIC_WEBSOCKET_URL: process.env.NEXT_PUBLIC_WEBSOCKET_URL,
+  },
+  env: {
+    NEXT_PUBLIC_WEBSOCKET_URL: process.env.NEXT_PUBLIC_WEBSOCKET_URL,
+  },
   webpack: (config, { dev, isServer }) => {
     // Only enable React fast refresh in development
     if (dev && !isServer) {

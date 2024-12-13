@@ -1,5 +1,8 @@
 FROM node:18-alpine AS builder
 
+ARG NEXT_PUBLIC_WEBSOCKET_URL
+ENV NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL}
+
 WORKDIR /app
 
 # Установка необходимых системных библиотек
