@@ -23,6 +23,14 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
 
 
     if (!socketRef.current) {
+      console.log('Debug environment variables:', {
+        websocketUrl: process.env.NEXT_PUBLIC_WEBSOCKET_URL,
+        isDefined: typeof process.env.NEXT_PUBLIC_WEBSOCKET_URL !== 'undefined',
+        isEmpty: process.env.NEXT_PUBLIC_WEBSOCKET_URL === '',
+        isNull: process.env.NEXT_PUBLIC_WEBSOCKET_URL === null,
+        nodeEnv: process.env.NODE_ENV
+      });
+
       const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://localhost:4000';
       console.log('Attempting to connect to WebSocket:', wsUrl);
       socketRef.current = io(wsUrl, {
