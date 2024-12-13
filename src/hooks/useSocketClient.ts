@@ -3,10 +3,10 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Message } from '@/types/message';
-import getConfig from 'next/config';
+
 
 export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessionId: string) {
-  const { publicRuntimeConfig } = getConfig();
+  
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -26,7 +26,9 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
 
     if (!socketRef.current) {
       
-      const wsUrl = publicRuntimeConfig.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:4000';
+      const wsUrl = process.env.NODE_ENV === 'production' 
+        ? 'ws://192.168.13.24:4000'
+        : 'ws://localhost:4000'; 
       console.log('Attempting to connect to WebSocket:', wsUrl);
       socketRef.current = io(wsUrl, {
         transports: ['websocket'],
