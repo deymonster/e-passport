@@ -33,7 +33,7 @@
 ### 1. Клонирование репозитория
 
 ```bash
-git clone [URL репозитория]
+git clone https://github.com/deymonster/e-passport.git
 cd e-passport
 ```
 
