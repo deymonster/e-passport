@@ -40,6 +40,7 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
       reconnectionAttempts: maxReconnectAttempts,
       reconnectionDelay: 1000,
       timeout: 10000,
+      forceNew: true,
       query: {
         ticketId,
         role,
@@ -65,21 +66,14 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
       setError(null);
     });
 
-    socket.on('connect_error', (err) => {
-      console.error('Connection error:', err);
-      console.error('Error details:', {
-        message: err.message,
-        type: err.name,
-        stack: err.stack
-      });
-      setError('Ошибка подключения к серверу');
-      setIsConnected(false);
-      
-      reconnectAttempts.current += 1;
-      if (reconnectAttempts.current >= maxReconnectAttempts) {
-        console.error('Max reconnection attempts reached');
-        cleanup();
-      }
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      setError(`Connection error: ${error.message}`);
+    });
+
+    socket.on('connect_timeout', () => {
+      console.error('Connection timeout');
+      setError('Connection timeout');
     });
 
     socket.on('disconnect', (reason) => {

@@ -51,18 +51,11 @@ services:
       dockerfile: Dockerfile.websocket
     ports:
       - "0.0.0.0:4000:4000"
-    env_file:
-      - .env
-    depends_on:
-      db:
-          condition: service_healthy
     networks:
       - epassport_network
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    extra_hosts:
-      - "registry.npmmirror.com:104.16.24.34"
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
     restart: unless-stopped
 
 networks:
