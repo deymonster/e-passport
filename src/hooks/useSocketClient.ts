@@ -28,9 +28,8 @@ export function useSocketClient(ticketId: number, role: 'user' | 'admin', sessio
   const connect = useCallback(() => {
     if (socketRef.current?.connected) return;
 
-    const wsUrl = process.env.NODE_ENV === 'production' 
-      ? 'ws://192.168.13.24:4000'
-      : 'ws://localhost:4000';
+    // Используем переменную окружения для WebSocket URL
+    const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
 
     console.log('Attempting to connect to WebSocket:', wsUrl);
     
