@@ -6,7 +6,7 @@ import pino from 'pino';
 import { TicketRepository } from './src/lib/repositories/ticketRepository';
 import { MessageRepository } from './src/lib/repositories/messageRepository';
 
-
+// Импорт типов запросов и ответов Express
 import { Request, Response } from 'express';
 
 // Инициализация Prisma, репозиториев и логгера
@@ -27,12 +27,27 @@ app.get('/', (req: Request, res: Response) => {
 // Инициализация Socket.IO с настройками CORS
 const io = new Server(server, {
   cors: {
-    origin: "*",  // Разрешаем подключения с любого домена
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   },
   path: '/socket.io/',
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  connectTimeout: 45000,
+  pingTimeout: 30000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  allowUpgrades: true
+});
+
+// Добавим логирование подключений
+io.engine.on("connection_error", (err) => {
+  logger.error('Connection error:', err);
+});
+
+io.engine.on("headers", (headers, req) => {
+  logger.info('Headers:', headers);
 });
 
 // Хранилище подключенных клиентов
