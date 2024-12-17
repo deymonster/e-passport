@@ -24,11 +24,11 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_WEBSOCKET_URL: ws://192.168.13.24:4000
+        NEXT_PUBLIC_WEBSOCKET_URL: ${NEXT_PUBLIC_WEBSOCKET_URL} 
     ports:
       - "0.0.0.0:3000:3000"
     environment:
-      NEXT_PUBLIC_WEBSOCKET_URL: ws://192.168.13.24:4000
+      NEXT_PUBLIC_WEBSOCKET_URL: ${NEXT_PUBLIC_WEBSOCKET_URL} 
     volumes:
       - ./public/uploads:/app/public/uploads
     env_file:
