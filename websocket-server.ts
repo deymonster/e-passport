@@ -27,7 +27,7 @@ app.get('/', (req: Request, res: Response) => {
 // Инициализация Socket.IO с настройками CORS
 const io = new Server(server, {
   cors: {
-    origin: process.env.NEXTAUTH_URL ? [process.env.NEXTAUTH_URL] : ["http://localhost:3000"],
+    origin: "*",  // Разрешаем подключения с любого домена
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -396,6 +396,6 @@ io.on('connection', (socket) => {
 // Запуск сервера
 const PORT = 4000;
 server.listen(PORT, () => {
-  logger.info(`WebSocket server running`);
-  logger.info(`WebSocket endpoint: ws://localhost:${PORT}/socket.io/`);
+  logger.info('WebSocket server running');
+  logger.info(`WebSocket endpoint: ws://${process.env.NEXT_PUBLIC_WEBSOCKET_URL || '0.0.0.0:4000'}/socket.io/`);
 });
